@@ -1,0 +1,38 @@
+.data
+	.type fib, %object
+	.size fib, 10
+
+fib:
+	.xword 0,1						// initializing the array
+	.text
+	.global main
+	.arch armv8-a+fp+simd
+	.type main, %function
+
+main:
+	ADRP X0, fib
+	ADD X0, X0, :lo12:fib
+
+	ADD X6, XZR, XZR 				//setting X6 = (i=0)
+
+for:
+	SUB X7, X6, #8					// X7 = 1-8, to see when it ends
+	CBZ X7, Exit 					// pretty much a boolean to see if it ends
+
+	ADD X3, X0, X6, LSL#3
+	LDUR X1, [X3, #0]				//fib[0]
+
+	ADD X8, X6, #1 					// adding i + 1 into register X8
+	LSL X3, X8, #3					//2^3 to shift over 8 bits every increment in i
+	ADD X3, X0, X3
+	LDUR X2, [X3, #0]				//v[1]
+
+	ADD X4, X1, X2 					//v[0]+v[1] not storing anything yet
+	ADD X8, X8, #1					//i + 2 to store the next sequence in the fibonacci
+	LSL X3, X8, #3					//shifting over 2^3 bits again
+	ADD X3, X0, X3
+	STUR X4, [X3, #0]
+
+	ADD X6, X6, #1					//i++ for the 'for()' loop
+	B for							//going back up to the for loop
+	Exit:
