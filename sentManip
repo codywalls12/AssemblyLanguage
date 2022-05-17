@@ -1,0 +1,65 @@
+.data
+   .type    v, %object
+
+s:
+    .asciz "elden ring is the best game ever"
+
+    .text
+    .global main
+    .arch armv8-a+fp+simd
+    .type main, %function
+
+start:
+    SUB SP,SP,#32       // Create space on stack
+    STUR X9,[SP,#16]    // Push X9
+    STUR W10,[SP,#8]    // Push W10
+    STUR X19,[SP,#0]    // Push X19
+    MOV X19, #0
+    ADD X1, XZR, XZR    // x1 stores number of words, x1 = 0
+
+    // capitalizing first letter of the first word
+    ADD X9,X19,X0       // X9 = addr of x[i]
+    LDURB W10, [X9, #0] // X10 = x[i]
+    SUB W10, W10, #32 //SHOULD substract the ascii val by 32 to get the capital version of the letter
+    STURB W10,[X9,#0]   // x[i] = y[i]    // stores the new ascii val??? MAYBE idk
+
+    // counting words
+    ADD X1, X1, #1
+spaces:
+    ADD X9,X19,X0       // X9 = addr of x[i]
+    LDURB W10, [X9, #0] // X10 = x[i]
+    CBZ X10, exit
+
+    SUB W10, W10, #32     //x[i]-32 to get capital version of the letter
+    ADD X11, XZR, X10    // temp store val to do CBZ branch
+
+       CBZ X10, capitalize          // if x[i] == 0 then exit
+
+    ADD X19,X19,#1      // i = i + 1
+    B spaces                // next iteration of loop
+
+
+capitalize:
+    ADD X1, X1, #1
+    ADD X19,X19,#1      // i = i + 1
+    ADD X9,X19,X0       // X9 = addr of x[i]
+    LDURB W10, [X9, #0] // X10 = x[i]
+    SUB W10, W10, #32     //x[i] - 32 to get the capital version of the letter
+    STURB W10,[X9,#0]   // stores the new ascii val
+
+    ADD X11, XZR, X10//**** temp store val to do CBZ branch
+    SUB X11, X11, #64
+
+
+    ADD X19,X19,#1      // i = i + 1
+    B spaces                //goes back to spaces
+
+main:
+    // pointer to source string
+    ADRP X0, s
+    ADD X0, X0, :lo12:s
+
+
+    BL start
+
+Exit:
