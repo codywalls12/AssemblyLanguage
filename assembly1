@@ -1,0 +1,172 @@
+.data
+	.type	v, %object
+num1:
+	.hword 0
+num2:
+	.hword 0
+fadd:
+	.hword 0
+fmul:
+	.hword 0
+myadd:
+	.hword 0
+mymult:
+	.hword 0
+
+.text
+	.global main
+	.arch armv8-a+fp16+simd
+	.type main, %function
+
+splithf:
+//num1 splitting
+	SUB SP, SP, #56
+
+	LDRSH X5, [X9] // holds OG num1 float in binary
+	MOV X7, #32768 // mask for sign
+	AND X1, X5, X7 // holds sign
+	ADD X1, X0, X1
+	STUR X1, [SP, #0] // stores num1 sign in 1st spot in stack
+
+	MOV X7, #31744 // mask for exponent
+	AND X2, X5, X7 // holds exponent
+ 	LSR X2, X2, #10 //shift right 10 bits
+	SUB X2, X2, #15 //subtract 15 to unbias exponent
+
+	MOV X7, #1023 // mask for the fraction
+	AND X3, X5, X7
+	MOV X7, #1024 // mask for mantissa
+	ORR X3, X3, X7 // x3 now holds the mantissa for num 1
+
+	STUR X2, [SP, #8] // num1 exp in 2nd spot stack
+	STUR X3, [SP, #16] // num1 mantissa in 3rd spot stack
+
+//	num 2 splitting
+	LDRSH X5, [X10]
+	//LDRSH X16, [X10]
+	MOV X7, #32768 // mask for sign
+	AND X1, X5, X7 // holds sign
+
+	MOV X7, #31744 // mask for exponent
+	AND X2, X5, X7 // holds exponent
+ 	LSR X2, X2, #10 //shift right 10 bits
+	SUB X2, X2, #15 //subtract 15 to unbias exponent
+
+	MOV X7, #1023 // mask for the fraction
+	AND X3, X5, X7
+	MOV X7, #1024 // mask for mantissa
+	ORR X3, X3, X7 // x3 now holds the mantissa for num 1
+
+	STUR X1, [SP, #24] // stores num1 sign in 1st spot in stack
+	STUR X2, [SP, #32] // num1 exp in 2nd spot stack
+	STUR X3, [SP, #40] // num1 mantissa in 3rd spot stack
+
+
+
+	ret
+
+addhf:
+	LDUR X2, [SP, #16] // load num1 mantissa
+	LDUR X3, [SP, #40]	// load num2 mantissa
+	LSR X3, X3, #5
+	ADD X4, X2, X3 // ADDING THE MANTISSAS
+	B normalizehf
+	addhfReturn:
+	LDUR X1, [SP, #0] // overall sign
+	LDUR X2, [SP, #32] // overall exp
+	ADD X3, X0, X4 	// added mantissa
+	B combinehf
+	STUR X5, [SP, #48]
+	ret
+multhf:
+	LDUR X2, [SP, #16]
+	LDUR X3, [SP, #40]
+	MUL X22, X2, X3 // multiplying the mantissas
+	B normalizehf
+	multhfReturn:
+	LDUR X1, [SP, #0]
+	LDUR X16, [SP, #8] // num1 exp
+	LDUR X17, [SP, #32] // num2 exp
+	ADD X2, X16, X17 // adding exponents
+	LSR X22, X22, #1 // shift right once
+	ADD X2, X2, #1
+	ADD X3, X0, X22 // X3 now holds the multiplied mantissas
+	B combinehf
+	STUR X5, [SP, #56]
+	ret
+
+
+combinehf:
+	ADD X2, X2, #15 // bias exponent by adding 15 to the decimal value
+	LSL X2, X2, #10 // shift 10 bits left for proper position
+	MOV X7, #1023 // mask for fraction
+	AND X3, X3, X7	// lose leading bit from mantissa
+	// combine in X5 sign with exponent
+	ORR X5, X1, X2
+	// combine in X5, X5 with fraction
+	ORR X5, X5, X3
+	ret
+
+
+
+normalizehf:
+	MOV X7, #1024 // mask for mantissa
+	CMP X7, X4
+
+	B.GT addhfReturn
+
+
+	ret
+
+
+
+main:
+	MOV X1, #52 // x1 = 52
+	MOV X2, #1356 // x2 = 1356
+
+	//**SCVTF Hn, Xd converts doubleword to half precision float**
+	SCVTF H1, X1 // X1 (num1) to H1
+	SCVTF H2, X2 // X2 (num2) to H2
+
+	ADD X0, XZR, XZR
+
+	ADRP X9, num1 // **address of num1**
+	ADD X9, X9, :lo12:num1 //**^**
+	STUR H1, [X9] // stores H1 in X9
+	LDRH W1, [X9] // loads X9 to W1 (lower 16 bits -> H)
+
+	ADRP X10, num2
+	ADD X10, X10, :lo12:num2
+	STUR H2, [X10] // H2 -> X10
+	LDRH W2, [X10] // X10 -> W2
+
+	//**ADDING H1(num1) AND H2(num2) & STORING IN H3(fadd)**
+	ADRP X11, fadd
+	ADD X11, X11, :lo12:fadd
+
+	FADD H3, H1, H2 // H8 = H1 + H2
+	STUR H3, [X11] // H3 -> X11
+
+	//**MULTIPLING H1(num1) and H2(num2) & STORING IN H4(fmul)**
+	ADRP X12, fmul
+	ADD X12, X12, :lo12:fmul
+
+	FMUL H4, H1, H2 // H2 = H1*H2
+	STUR H4, [X12] // H4 -> X12
+
+	ADRP X13, myadd
+	ADD X13, X13, :lo12:myadd
+
+	ADRP X14, mymult
+	ADD X14, X14, :lo12:mymult
+
+
+	BL splithf
+	BL addhf
+	BL multhf
+	LDUR X13, [SP, #48]
+	LDUR X14, [SP, #56]
+	B fini
+
+fini:
+	NOP
