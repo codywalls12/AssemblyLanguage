@@ -1,0 +1,39 @@
+.data
+#	.type v, %object
+
+a: // evens
+	.xword 2,4,6,8,10
+
+b: //odds
+	.xword 1,3,5,7,9
+	.text
+	.global main
+	.arch armv8-a+fp+simd
+	.type main, %function
+
+main:
+	ADRP X0, a						//storing array a into register X0
+	ADD X0, X0, :lo12:a
+	ADRP X1, b						//storing array b into register X1
+	ADD X1, X1, :lo12:b
+	ADD X6, XZR, XZR 				//setting X6 = (i=0)
+	ADD X7, XZR, XZR				//setting the sum (X7) to 0
+
+for:
+	SUB X8, X6, #5					// X8 = 1-5, to see when it ends
+	CBZ X8, Exit 					// pretty much a boolean to see if it ends
+
+	ADD X3, X0, X6, LSL#3			//shifting 2^3 bits to the right
+	LDUR X5, [X3, #0]				//a[0]
+
+	ADD X2, X1, X6, LSL#3
+	LDUR X4, [X2, #0]				//b[0]
+
+	//using X9 as a temp for the a[i] * b[i] since its only a temp register
+	MUL X9, X4, X5					//X4 = a[i] X5 = b[i]
+	ADD X7, X9, X7					//adding the prodict back to the sum
+
+	ADD X6, X6, #1 					//adding one back to i
+	B for
+
+	Exit:
