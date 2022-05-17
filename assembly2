@@ -1,0 +1,153 @@
+.data
+   .type    v, %object
+
+x:
+	// just setting values
+    .double 5.2	
+    .double -1    
+
+a:
+	setting value for a
+    .xword 4 
+
+c:
+	// initial 
+    .double 1 
+.text
+     .global main
+     .arch armv8-a+fp+simd
+     .type main, %function
+
+power:
+    FMOV D1, XZR    // temp = 0
+    FADD D1, D1, D3 // temp = x
+
+    FMOV D8, XZR // stores tempMultiple of x and -1
+
+    ADD X6, XZR, XZR // i = 0;
+
+    B powerLoop2 // looping back for 1
+
+powerReturn:
+    BR X30
+
+powerLoop2:
+    CMP X7, X6
+    B.LE powerReturn
+    FMUL D1, D1, D3 // temp = temp * base
+    FMUL D2, D2, D4 // (-1)^i
+    FMUL D8, D2, D1    // getting numerator
+    ADD X6, X6, #1
+    B powerLoop2
+
+
+factorial:
+    ADD X8, XZR, XZR // holds temp factorial number
+    ADD X8, X8, #1 // starts at 1
+
+
+    ADD X6, XZR, XZR // i = 0
+    ADD X6, X6, #1 // i = 1
+
+    B factLoop1 // for loop L2
+
+factorialReturn:
+    BR X30
+
+factLoop1:
+    CMP X7, X6
+    B.LT factorialReturn
+    MUL X8, X8, X6 // X8 x X8 * 1
+    ADD X6, X6, #1
+    B factLoop1
+
+cosval:
+    SUB SP, SP, #32 // allocating memory space for stack
+    FMOV D9, XZR
+    STUR D9, [SP, #24] // currSum
+    FMUL D20, D4, D4     // holds numerator which will be 1
+    STUR D20, [SP, #0] // pushes register onto stack
+
+
+    ADD X20, XZR, XZR    // holds denominator, initially 0, denominator is factorial
+    ADD X20, X20, #1
+    STUR X20, [SP, #8] // push onto stack
+    ADD X9, XZR, XZR // i = 0
+    MOV X9, #1
+
+    FMOV D2, XZR
+    FADD D2, D2, D4 // reg D2 = D4 = 1 begins at n = 1, loops back
+    FMUL D2, D2, D2
+
+    cosLoop:
+    CMP X4, X9
+    B.LT cosvalReturnPoint
+    ADD X7, XZR, XZR // initial power i
+    ADD X7, X7, X9 // add to power i current cosVal i
+    ADD X7, X7, X7    // added twice bc x^(2n) 
+    SUB X7, X7, #1    // (2n-1) 
+    BL power
+//LDUR D20, [SP, #0]
+//    FADD D20, D20, D8
+//    STUR D20, [SP, #0]
+    //MOV X9, #1
+    /*
+    ADD X7, XZR, XZR // initial power i = 0
+    ADD X7, X7, X9 // add to power i current cosVal i
+    ADD X7, X7, X7    // added twice bc x^(2n) meaning twice */
+    ADD X7, X7, #1 // (2n) not (2n-1) like power
+    BL factorial
+    //LDUR X20, [SP, #8]
+    //ADD X20, X20, X8
+    //STUR X20, [SP, #8]
+
+    SCVTF D5, X8 // type cast to double
+    FDIV D5, D8, D5
+
+    LDUR X20, [SP, #8]
+    //ADD X20, X20, X8
+    STUR X8, [SP, #8]
+
+    LDUR D20, [SP, #0]
+    //FADD D20, D20, D8
+    STUR D8, [SP, #0]
+
+    LDUR D9, [SP, #24]
+    FADD D9, D9, D5
+    STUR D9, [SP, #24]
+
+    ADD X9, X9, #1
+    B cosLoop
+
+
+
+    // call power function for (-1)^n
+    // call power function for x^2n
+    // call factorial function for (2n)!
+    // save & restore return address
+
+cosvalReturnPoint:
+    LDUR D9, [SP, #24]
+    FADD D19, D9, D19
+    ADD SP, SP,  #32
+    B Exit
+
+main:
+    // pointer to x
+    ADRP X27, x
+    ADD X27, X27, :lo12:x
+    LDUR D3, [X27, #0] // loads x into D3, double register
+    LDUR D4, [X27, #8]    // loads -1 into d4, double register
+    // pointer to a
+    ADRP X0, a
+    ADD X0,X0,:lo12:a
+    LDUR X4, [X0, #0]
+
+    ADRP X19, c
+    ADD X19, X19,:lo12:c
+    LDUR D19, [X19, #0]
+
+
+    BL cosval
+
+Exit:
